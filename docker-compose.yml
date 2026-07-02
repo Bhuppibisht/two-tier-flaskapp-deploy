@@ -1,0 +1,43 @@
+services:
+  web:
+    image: python:3.10
+    container_name: flask-web
+    working_dir: /app
+    volumes:
+      - .:/app
+    ports:
+      - "5000:5000"
+    environment:
+      MYSQL_HOST: db
+      MYSQL_USER: flask_user
+      MYSQL_PASSWORD: flask_password
+      MYSQL_DB: flask_db
+      PORT: 5000
+    depends_on:
+      db:
+        condition: service_healthy
+    command: >
+      sh -c "apt-get update &&
+             apt-get install -y --no-install-recommends gcc pkg-config default-libmysqlclient-dev &&
+             pip install --no-cache-dir -r requirements.txt &&
+             python app.py"
+
+  db:
+    image: mysql:8.0
+    container_name: flask-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password
+      MYSQL_DATABASE: flask_db
+      MYSQL_USER: flask_user
+      MYSQL_PASSWORD: flask_password
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot_password"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  mysql_data:
