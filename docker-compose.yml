@@ -1,43 +1,48 @@
+version: "3.8"
+
 services:
-  web:
-    image: python:3.10
-    container_name: flask-web
-    working_dir: /app
+  mysql:
+    user: "${UID}:${GID}" 
+    image: mysql:5.7
+    container_name: mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: devops
+      MYSQL_USER: admin
+      MYSQL_PASSWORD: admin
     volumes:
-      - .:/app
+      - ./mysql-data:/var/lib/mysql
+      - ./message.sql:/docker-entrypoint-initdb.d/message.sql  
+    networks:
+      - twotier
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  flask-app:
+    image: bhupendra/two-tier-flask-app:latest
+    container_name: flask-app
     ports:
       - "5000:5000"
     environment:
-      MYSQL_HOST: db
-      MYSQL_USER: flask_user
-      MYSQL_PASSWORD: flask_password
-      MYSQL_DB: flask_db
-      PORT: 5000
+      MYSQL_HOST: mysql
+      MYSQL_USER: root
+      MYSQL_PASSWORD: root
+      MYSQL_DB: devops
     depends_on:
-      db:
-        condition: service_healthy
-    command: >
-      sh -c "apt-get update &&
-             apt-get install -y --no-install-recommends gcc pkg-config default-libmysqlclient-dev &&
-             pip install --no-cache-dir -r requirements.txt &&
-             python app.py"
-
-  db:
-    image: mysql:8.0
-    container_name: flask-db
-    restart: unless-stopped
-    environment:
-      MYSQL_ROOT_PASSWORD: root_password
-      MYSQL_DATABASE: flask_db
-      MYSQL_USER: flask_user
-      MYSQL_PASSWORD: flask_password
-    volumes:
-      - mysql_data:/var/lib/mysql
+      - mysql
+    networks:
+      - twotier
+    restart: always
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot_password"]
-      interval: 5s
+      test: ["CMD-SHELL", "curl -f http://localhost:5000/health || exit 1"]
+      interval: 10s
       timeout: 5s
-      retries: 20
+      retries: 5
+      start_period: 30s
 
-volumes:
-  mysql_data:
+networks:
+  twotier:
